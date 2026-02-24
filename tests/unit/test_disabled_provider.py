@@ -24,6 +24,10 @@ class TestAllMethodsRaise:
         with pytest.raises(WorkspaceDisabledError):
             await provider.get_workspace("room-1")
 
+    async def test_get_file_info(self, provider):
+        with pytest.raises(WorkspaceDisabledError):
+            await provider.get_file_info("room-1", "/doc.pdf")
+
     async def test_list_files(self, provider):
         with pytest.raises(WorkspaceDisabledError):
             await provider.list_files("room-1")

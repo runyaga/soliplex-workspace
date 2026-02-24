@@ -38,6 +38,13 @@ class DisabledWorkspaceProvider:
     ) -> WorkspaceInfo | None:
         raise WorkspaceDisabledError
 
+    async def get_file_info(
+        self,
+        room_id: str,  # noqa: ARG002
+        path: str,  # noqa: ARG002
+    ) -> FileInfo:
+        raise WorkspaceDisabledError
+
     async def list_files(
         self,
         room_id: str,  # noqa: ARG002

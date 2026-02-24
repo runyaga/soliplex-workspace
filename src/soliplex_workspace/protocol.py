@@ -40,6 +40,14 @@ class WorkspaceProvider(Protocol):
         """Get workspace info, or None if it doesn't exist."""
         ...
 
+    async def get_file_info(
+        self,
+        room_id: str,
+        path: str,
+    ) -> FileInfo:
+        """Get metadata for a single file or folder."""
+        ...
+
     async def list_files(
         self,
         room_id: str,

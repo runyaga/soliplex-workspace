@@ -95,6 +95,31 @@ Week 12-13  Slice 8: Documentation + Release
 
 ---
 
+## Backlog (Future Milestones)
+
+### B1: LLM Tooling / Skills for Workspace Operations
+
+> LLM agents and skills that can read, write, search, and operate on
+> workspace contents. Enables AI-powered file workflows within rooms.
+
+- **Workspace tools for LLM**: read_file, write_file, list_files, search
+  exposed as callable tools/skills for the Soliplex LLM agent
+- **Context injection**: auto-include relevant workspace files in LLM context
+  based on conversation topic
+- **File generation**: LLM can create files (reports, summaries, code) and
+  save directly to workspace
+- **File transformation**: LLM can convert, summarize, or annotate existing
+  workspace files
+- **Skill registry**: workspace operations registered as Soliplex skills
+  (e.g., `/workspace-search`, `/workspace-summarize`)
+- **Permission model**: LLM tool access scoped to room-level permissions
+  (cannot cross rooms)
+- **Audit trail**: all LLM-initiated file operations logged for transparency
+- **Ephemeral integration**: LLM can use ephemeral per-chat workspaces for
+  scratch files during a conversation
+
+---
+
 ## AI Review Gate Protocol
 
 Every slice must pass an AI review gate before merging. The gate consists of:
