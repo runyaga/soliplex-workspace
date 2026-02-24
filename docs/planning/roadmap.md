@@ -2,6 +2,9 @@
 
 > Persistent file workspaces for Soliplex rooms. Facade architecture with
 > swappable backends: dufs (MVP) -> OpenCloud (production).
+>
+> **Every slice has a mandatory AI review gate.** See
+> [current-plan.md](current-plan.md) for exact tool invocations and prompts.
 
 ## Timeline Overview
 
@@ -89,3 +92,19 @@ Week 12-13  Slice 8: Documentation + Release
 - Configuration reference
 - PyPI package published
 - PR to soliplex/soliplex for integration
+
+---
+
+## AI Review Gate Protocol
+
+Every slice must pass an AI review gate before merging. The gate consists of:
+
+1. **Gemini review** via `mcp__gemini__read_files` (model: `gemini-3.1-pro-preview`)
+   - Reviews architecture, typing, completeness, edge cases
+2. **Codex review** via `mcp__codex__codex` (sandbox: `read-only`)
+   - Reviews security, bugs, correctness, edge cases
+3. **Triage**: Critical/High = must fix. Medium = fix or justify.
+4. **Re-review** after fixes to confirm resolution.
+
+See [current-plan.md](current-plan.md) for per-slice review prompts and
+exact tool invocation syntax.

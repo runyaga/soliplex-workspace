@@ -7,9 +7,9 @@
 
 ## Goal
 
-Establish the project with strict tooling (pre-commit, ruff, pytest, gitleaks),
-define the `WorkspaceProvider` Protocol, and implement mock + disabled providers
-for testing and backward compatibility.
+Establish the project with strict tooling (pre-commit, ruff, pyright, pytest,
+gitleaks), define the `WorkspaceProvider` Protocol, and implement mock +
+disabled providers for testing and backward compatibility.
 
 ## Deliverable
 
@@ -29,6 +29,7 @@ downstream unit tests to run without external dependencies.
 - `.pre-commit-config.yaml` -- ruff, gitleaks, yaml/toml checks, no-commit-to-branch
 - `.gitleaks.toml` -- secret scanning allowlist
 - `.gitignore` -- Python standard ignores
+- `pyrightconfig.json` -- pyright strict mode
 - `src/soliplex_workspace/__init__.py` -- package init
 - `tests/conftest.py` -- shared fixtures
 
@@ -108,6 +109,7 @@ turned off in Soliplex configuration.
 | `.pre-commit-config.yaml` | New -- pre-commit hooks |
 | `.gitleaks.toml` | New -- secret scanning config |
 | `.gitignore` | New -- ignore patterns |
+| `pyrightconfig.json` | New -- pyright strict config |
 | `src/soliplex_workspace/__init__.py` | New -- package exports |
 | `src/soliplex_workspace/protocol.py` | New -- WorkspaceProvider Protocol |
 | `src/soliplex_workspace/models.py` | New -- WorkspaceInfo, FileInfo |
@@ -132,17 +134,11 @@ All tests in this slice are **pure Python unit tests**. They run with `pytest`
 ### Autonomous test commands
 
 ```bash
-# Run all tests with coverage
-pytest
-
-# Run only slice-0 tests
-pytest tests/unit/test_protocol.py tests/unit/test_mock_provider.py tests/unit/test_disabled_provider.py tests/unit/test_models.py
-
-# Lint + format
-ruff check && ruff format --check
-
-# Pre-commit
-pre-commit run --all-files
+uv run ruff check
+uv run ruff format --check
+uv run pyright
+uv run pytest
+uv run pre-commit run --all-files
 ```
 
 ### Test cases: MockWorkspaceProvider
@@ -174,23 +170,85 @@ pre-commit run --all-files
 
 ## Acceptance Criteria
 
-- [ ] `ruff check` -- 0 issues
-- [ ] `ruff format --check` -- no changes
-- [ ] `pre-commit run --all-files` -- all hooks pass
-- [ ] `pytest` -- all pass, >= 100% coverage
+- [ ] `uv run ruff check` -- 0 issues
+- [ ] `uv run ruff format --check` -- no changes
+- [ ] `uv run pyright` -- 0 errors, 0 warnings
+- [ ] `uv run pre-commit run --all-files` -- all hooks pass
+- [ ] `uv run pytest` -- all pass, 100% coverage
 - [ ] `WorkspaceProvider` Protocol is fully typed (no `Any`)
 - [ ] `MockWorkspaceProvider` passes all 11 test cases
 - [ ] `DisabledWorkspaceProvider` raises on every method
 - [ ] ADR-0001 committed and reviewed
-- [ ] Package installs cleanly: `pip install -e .`
+- [ ] Package installs cleanly: `uv pip install -e .`
 
 ---
 
-## Review Gate
+## AI Review Gate (MANDATORY -- must pass before Slice 1)
 
-After implementation, before merging:
+### Step 1: Gemini review
 
-1. **Gemini `read_files`** (`gemini-3.1-pro-preview`) of `protocol.py` and
-   `models.py` -- interface completeness, typing best practices, missing edge
-   cases in the protocol design
-2. Review feedback addressed before moving to Slice 1
+Execute:
+
+```json
+mcp__gemini__read_files(
+  file_paths=[
+    "src/soliplex_workspace/protocol.py",
+    "src/soliplex_workspace/models.py",
+    "src/soliplex_workspace/exceptions.py"
+  ],
+  prompt="Review Slice 0 of a workspace provider library. Check:
+    1. Interface completeness (missing ops: stat, copy, search,
+       streaming, pagination?)
+    2. Python typing (pyright strict correctness)
+    3. Protocol design (method signatures, return types)
+    4. Data model completeness (missing fields?)
+    5. Exception hierarchy (missing error types?)
+    6. Edge cases (path encoding, concurrency, large files)
+    Be critical. Flag anything that breaks real backends.",
+  model="gemini-3.1-pro-preview"
+)
+```
+
+### Step 2: Codex review
+
+Execute:
+
+```json
+mcp__codex__codex(
+  prompt="Review workspace provider library at CWD for Slice 0.
+    Focus on: 1. WorkspaceProvider Protocol completeness
+    2. Data models completeness 3. Exception hierarchy
+    4. Typing issues for pyright strict 5. MockWorkspaceProvider
+    correctness 6. Security (path traversal in _normalize).
+    Be specific about what is missing or wrong.",
+  sandbox="read-only",
+  approval-policy="on-failure"
+)
+```
+
+### Step 3: Triage and fix
+
+- [ ] All Critical/High findings fixed in code
+- [ ] All Medium findings fixed or justified in PR description
+- [ ] Re-run autonomous checks after fixes
+- [ ] Re-run both AI reviews on fixed code -- no new Critical/High
+- [ ] All gate checkboxes checked
+
+### Slice 0 Review Results
+
+> Record findings and resolution status here after running the gate.
+
+| Source | Severity | Finding | Status |
+|--------|----------|---------|--------|
+| Gemini | Critical | No streaming for large files | Deferred to Slice 1 (dufs needs streaming) |
+| Gemini | Critical | Dangerous datetime defaults | TBD |
+| Gemini | High | Missing `get_file_info` / stat | TBD |
+| Gemini | High | No pagination for list_files | TBD |
+| Gemini | Medium | Missing exceptions (AlreadyExists, QuotaExceeded) | TBD |
+| Gemini | Medium | Duplicate URL approach (methods + model) | TBD |
+| Gemini | Medium | No `if_match_etag` for conflict prevention | TBD |
+| Codex | High | Path traversal: `../` survives _normalize | TBD |
+| Codex | High | `move` only handles files, not dirs | TBD |
+| Codex | Medium | `delete_file` no emptiness check or missing error | TBD |
+| Codex | Medium | `list_files` no implicit parent dirs | TBD |
+| Codex | Medium | Missing stat, copy, exists operations | TBD |
