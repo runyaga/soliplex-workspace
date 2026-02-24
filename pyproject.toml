@@ -1,0 +1,76 @@
+[project]
+name = "soliplex-workspace"
+version = "0.1.0"
+description = "Persistent file workspace provider for Soliplex rooms"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.14.0",
+    "pyright>=1.1.0",
+    "pre-commit>=4.0",
+    "respx>=0.22.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+python_files = "test_*.py"
+testpaths = ["tests/unit"]
+asyncio_mode = "auto"
+addopts = "--cov=soliplex_workspace --cov=tests/unit --cov-branch --cov-fail-under=100"
+filterwarnings = []
+markers = [
+    "dufs: requires running dufs instance",
+    "opencloud: requires running OpenCloud instance",
+    "rag: requires RAG pipeline",
+    "security: security-focused tests",
+]
+
+[tool.coverage.run]
+source = ["src/soliplex_workspace"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.ruff]
+line-length = 79
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    # flake8
+    "F",
+    # pycodestyle
+    "E",
+    # flake8-bugbear
+    "B",
+    # pyupgrade
+    "U",
+    # isort
+    "I",
+    # pandas vet
+    "PD",
+    # tryceratops
+    "TRY",
+    # flake8-pytest-style
+    "PT",
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.flake8-pytest-style]
+parametrize-names-type = "csv"
