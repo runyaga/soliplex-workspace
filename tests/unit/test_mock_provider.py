@@ -4,7 +4,6 @@ import pytest
 
 from soliplex_workspace.exceptions import DirectoryNotEmptyError
 from soliplex_workspace.exceptions import InvalidPathError
-from soliplex_workspace.exceptions import WorkspaceAlreadyExistsError
 from soliplex_workspace.exceptions import WorkspaceFileNotFoundError
 from soliplex_workspace.exceptions import WorkspaceNotFoundError
 from soliplex_workspace.providers.mock import MockWorkspaceProvider
@@ -21,10 +20,10 @@ class TestCreateWorkspace:
         assert info.room_id == "room-1"
         assert info.name == "Test Room"
 
-    async def test_create_duplicate_raises(self, provider):
-        await provider.create_workspace("room-1", "Test")
-        with pytest.raises(WorkspaceAlreadyExistsError):
-            await provider.create_workspace("room-1", "Test Again")
+    async def test_create_duplicate_is_idempotent(self, provider):
+        first = await provider.create_workspace("room-1", "Test")
+        second = await provider.create_workspace("room-1", "Test Again")
+        assert second.room_id == first.room_id
 
     async def test_create_with_quota(self, provider):
         info = await provider.create_workspace(
@@ -271,6 +270,101 @@ class TestPathNormalization:
         await provider.create_workspace("room-1", "Test")
         info = await provider.upload_file("room-1", "/a/./b.txt", b"ok")
         assert info.path == "/a/b.txt"
+
+
+class TestListFilesRecursive:
+    async def test_recursive_flat(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.upload_file("room-1", "/a.txt", b"aaa")
+        await provider.upload_file("room-1", "/b.txt", b"bbb")
+        result = await provider.list_files_recursive("room-1")
+        paths = [f.path for f in result]
+        assert "/a.txt" in paths
+        assert "/b.txt" in paths
+
+    async def test_recursive_nested(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.create_folder("room-1", "/sub")
+        await provider.upload_file("room-1", "/sub/deep.txt", b"deep")
+        result = await provider.list_files_recursive("room-1")
+        paths = [f.path for f in result]
+        assert "/sub" in paths
+        assert "/sub/deep.txt" in paths
+
+    async def test_max_depth_clamped(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        result = await provider.list_files_recursive("room-1", max_depth=999)
+        assert isinstance(result, list)
+
+    async def test_max_results_cap(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        for i in range(10):
+            await provider.upload_file("room-1", f"/f{i}.txt", b"x")
+        result = await provider.list_files_recursive("room-1", max_results=3)
+        assert len(result) <= 3
+
+    async def test_sorted_by_path(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.upload_file("room-1", "/z.txt", b"z")
+        await provider.upload_file("room-1", "/a.txt", b"a")
+        result = await provider.list_files_recursive("room-1")
+        paths = [f.path for f in result]
+        assert paths == sorted(paths)
+
+    async def test_subpath(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.create_folder("room-1", "/sub")
+        await provider.upload_file("room-1", "/sub/in.txt", b"in")
+        await provider.upload_file("room-1", "/out.txt", b"out")
+        result = await provider.list_files_recursive("room-1", "/sub")
+        paths = [f.path for f in result]
+        assert "/sub/in.txt" in paths
+        assert "/out.txt" not in paths
+
+    async def test_nonexistent_workspace_raises(self, provider):
+        with pytest.raises(WorkspaceNotFoundError):
+            await provider.list_files_recursive("nope")
+
+
+class TestReadText:
+    async def test_read_text(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.upload_file("room-1", "/hi.txt", b"hello world")
+        text = await provider.read_text("room-1", "/hi.txt")
+        assert text == "hello world"
+
+    async def test_read_truncated(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.upload_file("room-1", "/big.txt", b"x" * 200)
+        text = await provider.read_text("room-1", "/big.txt", max_bytes=50)
+        assert len(text) == 50
+
+    async def test_read_nonexistent_raises(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        with pytest.raises(WorkspaceFileNotFoundError):
+            await provider.read_text("room-1", "/nope.txt")
+
+    async def test_read_binary_raises(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.upload_file("room-1", "/bin.dat", b"\x80\x81\x82")
+        with pytest.raises(UnicodeDecodeError):
+            await provider.read_text("room-1", "/bin.dat")
+
+
+class TestWriteText:
+    async def test_write_and_read_back(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        info = await provider.write_text("room-1", "/note.txt", "hello")
+        assert info.name == "note.txt"
+        assert info.size_bytes == 5
+        data = await provider.download_file("room-1", "/note.txt")
+        assert data == b"hello"
+
+    async def test_write_utf8(self, provider):
+        await provider.create_workspace("room-1", "Test")
+        await provider.write_text("room-1", "/uni.txt", "café")
+        data = await provider.download_file("room-1", "/uni.txt")
+        assert data == "café".encode()
 
 
 class TestUrlMethods:

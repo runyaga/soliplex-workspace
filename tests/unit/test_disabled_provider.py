@@ -52,6 +52,18 @@ class TestAllMethodsRaise:
         with pytest.raises(WorkspaceDisabledError):
             await provider.move("room-1", "/a.txt", "/b.txt")
 
+    async def test_list_files_recursive(self, provider):
+        with pytest.raises(WorkspaceDisabledError):
+            await provider.list_files_recursive("room-1")
+
+    async def test_read_text(self, provider):
+        with pytest.raises(WorkspaceDisabledError):
+            await provider.read_text("room-1", "/doc.txt")
+
+    async def test_write_text(self, provider):
+        with pytest.raises(WorkspaceDisabledError):
+            await provider.write_text("room-1", "/doc.txt", "hello")
+
     async def test_get_web_ui_url(self, provider):
         with pytest.raises(WorkspaceDisabledError):
             await provider.get_web_ui_url("room-1")

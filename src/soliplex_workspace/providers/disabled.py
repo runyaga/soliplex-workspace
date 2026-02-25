@@ -89,6 +89,33 @@ class DisabledWorkspaceProvider:
     ) -> FileInfo:
         raise WorkspaceDisabledError
 
+    async def list_files_recursive(
+        self,
+        room_id: str,  # noqa: ARG002
+        path: str = "/",  # noqa: ARG002
+        max_depth: int = 10,  # noqa: ARG002
+        max_results: int = 1000,  # noqa: ARG002
+    ) -> list[FileInfo]:
+        raise WorkspaceDisabledError
+
+    async def read_text(
+        self,
+        room_id: str,  # noqa: ARG002
+        path: str,  # noqa: ARG002
+        encoding: str = "utf-8",  # noqa: ARG002
+        max_bytes: int = 100_000,  # noqa: ARG002
+    ) -> str:
+        raise WorkspaceDisabledError
+
+    async def write_text(
+        self,
+        room_id: str,  # noqa: ARG002
+        path: str,  # noqa: ARG002
+        content: str,  # noqa: ARG002
+        encoding: str = "utf-8",  # noqa: ARG002
+    ) -> FileInfo:
+        raise WorkspaceDisabledError
+
     async def get_web_ui_url(
         self,
         room_id: str,  # noqa: ARG002

@@ -8,6 +8,7 @@ from soliplex_workspace.exceptions import WorkspaceFileNotFoundError
 from soliplex_workspace.exceptions import WorkspaceNotFoundError
 from soliplex_workspace.models import FileInfo
 from soliplex_workspace.models import WorkspaceInfo
+from soliplex_workspace.utils import normalize_path
 
 
 class MockWorkspaceProvider:
@@ -28,10 +29,8 @@ class MockWorkspaceProvider:
         name: str,
         quota_bytes: int | None = None,
     ) -> WorkspaceInfo:
-        from soliplex_workspace.exceptions import WorkspaceAlreadyExistsError
-
         if room_id in self._workspaces:
-            raise WorkspaceAlreadyExistsError(room_id)
+            return self._workspaces[room_id]
         info = WorkspaceInfo(
             room_id=room_id,
             name=name,
@@ -59,7 +58,7 @@ class MockWorkspaceProvider:
         path: str,
     ) -> FileInfo:
         self._require_workspace(room_id)
-        path = _normalize(path)
+        path = normalize_path(path)
         room_files = self._files.get(room_id, {})
         if path in room_files:
             return FileInfo(
@@ -82,7 +81,7 @@ class MockWorkspaceProvider:
         path: str = "/",
     ) -> list[FileInfo]:
         self._require_workspace(room_id)
-        path = _normalize(path)
+        path = normalize_path(path)
 
         room_dirs = self._dirs.get(room_id, set())
         dir_entries = [
@@ -115,7 +114,8 @@ class MockWorkspaceProvider:
         content: bytes,
     ) -> FileInfo:
         self._require_workspace(room_id)
-        path = _normalize(path)
+        path = normalize_path(path)
+        self._ensure_parents(room_id, path)
         self._files[room_id][path] = content
         return FileInfo(
             name=posixpath.basename(path),
@@ -129,7 +129,7 @@ class MockWorkspaceProvider:
         path: str,
     ) -> bytes:
         self._require_workspace(room_id)
-        path = _normalize(path)
+        path = normalize_path(path)
         room_files = self._files.get(room_id, {})
         if path not in room_files:
             raise WorkspaceFileNotFoundError(room_id, path)
@@ -143,7 +143,7 @@ class MockWorkspaceProvider:
         from soliplex_workspace.exceptions import DirectoryNotEmptyError
 
         self._require_workspace(room_id)
-        path = _normalize(path)
+        path = normalize_path(path)
         room_files = self._files.get(room_id, {})
         room_dirs = self._dirs.get(room_id, set())
 
@@ -170,7 +170,8 @@ class MockWorkspaceProvider:
         path: str,
     ) -> FileInfo:
         self._require_workspace(room_id)
-        path = _normalize(path)
+        path = normalize_path(path)
+        self._ensure_parents(room_id, path)
         self._dirs[room_id].add(path)
         return FileInfo(
             name=posixpath.basename(path),
@@ -187,8 +188,8 @@ class MockWorkspaceProvider:
         from soliplex_workspace.exceptions import InvalidPathError
 
         self._require_workspace(room_id)
-        src = _normalize(src)
-        dst = _normalize(dst)
+        src = normalize_path(src)
+        dst = normalize_path(dst)
         if dst == src or dst.startswith(src + "/"):
             raise InvalidPathError(dst)
         room_files = self._files.get(room_id, {})
@@ -224,6 +225,78 @@ class MockWorkspaceProvider:
 
         raise WorkspaceFileNotFoundError(room_id, src)
 
+    async def list_files_recursive(
+        self,
+        room_id: str,
+        path: str = "/",
+        max_depth: int = 10,
+        max_results: int = 1000,
+    ) -> list[FileInfo]:
+        self._require_workspace(room_id)
+        path = normalize_path(path)
+        max_depth = min(max_depth, 20)
+        prefix = path.rstrip("/") + "/" if path != "/" else "/"
+
+        results: list[FileInfo] = []
+        room_dirs = self._dirs.get(room_id, set())
+        room_files = self._files.get(room_id, {})
+
+        for d in sorted(room_dirs):
+            if len(results) >= max_results:
+                break
+            if d == path:
+                continue
+            if not d.startswith(prefix):
+                continue
+            depth = d[len(prefix) :].count("/") + 1
+            if depth > max_depth:
+                continue
+            results.append(
+                FileInfo(
+                    name=posixpath.basename(d),
+                    path=d,
+                    is_directory=True,
+                )
+            )
+
+        for fpath in sorted(room_files):
+            if len(results) >= max_results:
+                break
+            if not fpath.startswith(prefix):
+                continue
+            depth = fpath[len(prefix) :].count("/") + 1
+            if depth > max_depth:
+                continue
+            results.append(
+                FileInfo(
+                    name=posixpath.basename(fpath),
+                    path=fpath,
+                    size_bytes=len(room_files[fpath]),
+                )
+            )
+
+        results.sort(key=lambda f: f.path)
+        return results[:max_results]
+
+    async def read_text(
+        self,
+        room_id: str,
+        path: str,
+        encoding: str = "utf-8",
+        max_bytes: int = 100_000,
+    ) -> str:
+        data = await self.download_file(room_id, path)
+        return data[:max_bytes].decode(encoding)
+
+    async def write_text(
+        self,
+        room_id: str,
+        path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> FileInfo:
+        return await self.upload_file(room_id, path, content.encode(encoding))
+
     async def get_web_ui_url(
         self,
         room_id: str,  # noqa: ARG002
@@ -236,20 +309,14 @@ class MockWorkspaceProvider:
     ) -> str | None:
         return None
 
+    def _ensure_parents(self, room_id: str, path: str) -> None:
+        """Create parent directories for a path if they don't exist."""
+        parts = path.strip("/").split("/")
+        current = ""
+        for part in parts[:-1]:
+            current = f"{current}/{part}"
+            self._dirs[room_id].add(current)
+
     def _require_workspace(self, room_id: str) -> None:
         if room_id not in self._workspaces:
             raise WorkspaceNotFoundError(room_id)
-
-
-def _normalize(path: str) -> str:
-    """Normalize a path to absolute form and reject traversal attempts.
-
-    Raises ``InvalidPathError`` if the path contains ``..`` segments.
-    """
-    from soliplex_workspace.exceptions import InvalidPathError
-
-    if ".." in path.split("/"):
-        raise InvalidPathError(path)
-    if not path.startswith("/"):
-        path = "/" + path
-    return posixpath.normpath(path)

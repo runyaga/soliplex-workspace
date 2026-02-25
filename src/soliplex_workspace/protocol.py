@@ -98,6 +98,40 @@ class WorkspaceProvider(Protocol):
         """Move or rename a file/folder."""
         ...
 
+    async def list_files_recursive(
+        self,
+        room_id: str,
+        path: str = "/",
+        max_depth: int = 10,
+        max_results: int = 1000,
+    ) -> list[FileInfo]:
+        """Recursively list all files and folders under *path*.
+
+        ``max_depth`` is clamped to a hard ceiling of 20.
+        Results are truncated at ``max_results``.
+        """
+        ...
+
+    async def read_text(
+        self,
+        room_id: str,
+        path: str,
+        encoding: str = "utf-8",
+        max_bytes: int = 100_000,
+    ) -> str:
+        """Read a text file, truncating at *max_bytes* before decoding."""
+        ...
+
+    async def write_text(
+        self,
+        room_id: str,
+        path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> FileInfo:
+        """Write a text file from a string."""
+        ...
+
     async def get_web_ui_url(
         self,
         room_id: str,
