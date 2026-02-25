@@ -9,20 +9,21 @@
 ## Timeline Overview
 
 ```text
-Week 1-2    Slice 0: Project Setup + Provider Interface
-Week 2-3    Slice 1: dufs Backend + Auth Proxy
-Week 3-4    Slice 2: REST API Endpoints + Basic Flutter Widget
-Week 5-6    Slice 3: OpenCloud Backend Implementation
-Week 6-7    Slice 4: OpenCloud Lifecycle Hooks + Embed Mode
-Week 7-8    Slice 5: Ephemeral Per-Chat Workspaces
-Week 8-9    Slice 6: RAG Integration Pipeline
-Week 10-11  Slice 7: Security Audit + Production Hardening
-Week 12-13  Slice 8: Documentation + Release
+Week 1-2    Slice 0: Project Setup + Provider Interface         [DONE]
+Week 2-3    Slice 1: dufs Backend + Integration Test Infra      [restructured]
+Week 3-4    Slice 2: REST API + API Integration Tests           [restructured]
+Week 4-5    Slice 3: E2E Tests Through Soliplex                 [NEW]
+Week 5-6    Slice 4: OpenCloud Backend                          [was Slice 3]
+Week 6-7    Slice 5: OpenCloud Lifecycle + Embed Mode           [was Slice 4]
+Week 7-8    Slice 6: Ephemeral Per-Chat Workspaces              [was Slice 5]
+Week 8-9    Slice 7: RAG Integration Pipeline                   [was Slice 6]
+Week 10-11  Slice 8: Security Audit + Production Hardening      [was Slice 7]
+Week 12-13  Slice 9: Docs + Release                             [was Slice 8]
 ```
 
 ## Milestones
 
-### M0: Foundation (Weeks 1-2)
+### M0: Foundation (Weeks 1-2) [DONE]
 
 > Repo setup, tooling, provider protocol, mock provider, 100% coverage
 > baseline established.
@@ -33,16 +34,17 @@ Week 12-13  Slice 8: Documentation + Release
 - `DisabledWorkspaceProvider` for backward compatibility
 - ADR-0001 committed
 
-### M1: dufs MVP (Weeks 2-4)
+### M1: dufs MVP + Integration Infra (Weeks 2-5)
 
-> Users can upload/download/list/delete files in a room workspace.
-> Auth validated against Soliplex JWT. Basic web UI via dufs built-in.
+> Slices 1-3. Users can upload/download/list/delete files via REST API
+> backed by dufs. Full test pyramid: unit + integration + E2E.
 
-- `DufsWorkspaceProvider` implementation
-- JWT auth proxy middleware
-- REST API: `GET/POST/DELETE /api/v1/rooms/{room_id}/files/`
-- Docker Compose: Soliplex + dufs
+- `DufsWorkspaceProvider` implementation (WebDAV over httpx)
+- REST API endpoints: `/v1/rooms/{room_id}/workspace/...`
+- Docker Compose test infrastructure
 - Integration tests against real dufs instance
+- E2E tests through full stack
+- Shared `normalize_path()` utility extracted
 
 ### M2: OpenCloud Integration (Weeks 5-7)
 
@@ -59,18 +61,12 @@ Week 12-13  Slice 8: Documentation + Release
 ### M2.5: Ephemeral Per-Chat Workspaces (Week 7-8)
 
 > Temp workspaces scoped to a single chat session. Auto-reaped after
-> configurable TTL (default: 7 days). Lets users create throwaway file
-> contexts without polluting the room's persistent workspace.
+> configurable TTL (default: 7 days).
 
-- `EphemeralWorkspaceProvider` decorator/wrapper around any base provider
-- Session-scoped workspace creation (chat_id + room_id composite key)
-- TTL metadata tracking (created_at, expires_at, last_accessed_at)
-- Reaper background task: purge expired workspaces on schedule
-- API: `POST /api/v1/rooms/{room_id}/chats/{chat_id}/workspace/` (create)
-- API: `DELETE .../workspace/` (manual teardown before TTL)
-- Config: `ephemeral_ttl_days`, `ephemeral_max_size_bytes`, `reaper_interval`
-- Isolation: ephemeral workspaces live in a separate namespace (prefix `/ephemeral/`)
-- Promotion: option to "keep" files by copying to room's persistent workspace
+- `EphemeralWorkspaceProvider` decorator/wrapper
+- Session-scoped workspace creation
+- TTL metadata tracking + reaper background task
+- Promotion: copy files from ephemeral to persistent workspace
 
 ### M3: RAG + Production (Weeks 8-11)
 
@@ -103,20 +99,11 @@ Week 12-13  Slice 8: Documentation + Release
 > workspace contents. Enables AI-powered file workflows within rooms.
 
 - **Workspace tools for LLM**: read_file, write_file, list_files, search
-  exposed as callable tools/skills for the Soliplex LLM agent
 - **Context injection**: auto-include relevant workspace files in LLM context
-  based on conversation topic
-- **File generation**: LLM can create files (reports, summaries, code) and
-  save directly to workspace
-- **File transformation**: LLM can convert, summarize, or annotate existing
-  workspace files
-- **Skill registry**: workspace operations registered as Soliplex skills
-  (e.g., `/workspace-search`, `/workspace-summarize`)
+- **File generation**: LLM can create files and save to workspace
+- **Skill registry**: workspace operations as Soliplex skills
 - **Permission model**: LLM tool access scoped to room-level permissions
-  (cannot cross rooms)
-- **Audit trail**: all LLM-initiated file operations logged for transparency
-- **Ephemeral integration**: LLM can use ephemeral per-chat workspaces for
-  scratch files during a conversation
+- **Audit trail**: all LLM-initiated file operations logged
 
 ---
 
@@ -124,12 +111,11 @@ Week 12-13  Slice 8: Documentation + Release
 
 Every slice must pass an AI review gate before merging. The gate consists of:
 
-1. **Gemini review** via `mcp__gemini__read_files` (model: `gemini-3.1-pro-preview`)
-   - Reviews architecture, typing, completeness, edge cases
-2. **Codex review** via `mcp__codex__codex` (sandbox: `read-only`)
-   - Reviews security, bugs, correctness, edge cases
-3. **Triage**: Critical/High = must fix. Medium = fix or justify.
-4. **Re-review** after fixes to confirm resolution.
+1. **Autonomous checks**: ruff, pyright, pytest (100% coverage)
+2. **Gemini review** via `mcp__gemini__read_files` (model: `gemini-3.1-pro-preview`)
+3. **Codex review** via `mcp__codex__codex` (sandbox: `read-only`)
+4. **Triage**: Critical/High = must fix. Medium = fix or justify.
+5. **Re-review** after fixes to confirm resolution.
 
 See [current-plan.md](current-plan.md) for per-slice review prompts and
 exact tool invocation syntax.

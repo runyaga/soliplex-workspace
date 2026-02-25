@@ -1,0 +1,16 @@
+services:
+  dufs:
+    image: sigoden/dufs:latest
+    ports:
+      - "5001:5000"
+    volumes:
+      - dufs-data:/data
+    command: /data -A --enable-cors
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  dufs-data:

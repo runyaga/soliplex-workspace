@@ -1,7 +1,10 @@
 # Soliplex Workspace -- Milestone Plan
 
-> 9 slices. Each slice is a stacked PR. **Every slice has a mandatory AI
+> 10 slices. Each slice is a stacked PR. **Every slice has a mandatory AI
 > review gate that must pass before proceeding to the next slice.**
+>
+> Slices 1-3 restructured to add integration test infra, REST API, and E2E
+> tests. Former slices 3-8 renumbered to 4-9.
 
 ## AI Review Gate Protocol
 
@@ -32,15 +35,16 @@ execute these steps and record results before merging.
 ```text
 main
  └── feat/workspace-provider
-      └── feat/workspace-provider/slice-0   PR #? -> main
-           └── feat/workspace-provider/slice-1   PR #? -> slice-0
-                └── feat/workspace-provider/slice-2   PR #? -> slice-1
-                     └── feat/workspace-provider/slice-3   PR #? -> slice-2
-                          └── feat/workspace-provider/slice-4   PR #? -> slice-3
-                               └── feat/workspace-provider/slice-5   PR #? -> slice-4
-                                    └── feat/workspace-provider/slice-6   PR #? -> slice-5
-                                         └── feat/workspace-provider/slice-7   PR #? -> slice-6
-                                              └── feat/workspace-provider/slice-8   PR #? -> slice-7
+      └── slice-0   [DONE] Project Setup + Provider Interface
+           └── slice-1   dufs Backend + Integration Test Infra
+                └── slice-2   REST API + API Integration Tests
+                     └── slice-3   E2E Tests Through Soliplex
+                          └── slice-4   OpenCloud Backend [was 3]
+                               └── slice-5   OpenCloud Lifecycle + Embed [was 4]
+                                    └── slice-6   Ephemeral Workspaces [was 5]
+                                         └── slice-7   RAG Integration [was 6]
+                                              └── slice-8   Security Audit [was 7]
+                                                   └── slice-9   Docs + Release [was 8]
 ```
 
 Each PR shows only the diff for its slice. Merges happen bottom-up.
@@ -120,7 +124,7 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 ---
 
-### Slice 1: dufs Backend + Auth Proxy
+### Slice 1: dufs Backend + Integration Test Infrastructure
 
 - **Spec:** [slice-1-dufs-backend.md](slice-1-dufs-backend.md)
 - **Branch:** `feat/workspace-provider/slice-1`
@@ -129,67 +133,36 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 #### Implementation
 
-- [ ] `DufsWorkspaceProvider` implements `WorkspaceProvider`
-- [ ] WebDAV client for file operations (httpx-based)
-- [ ] JWT validation middleware for auth proxy
-- [ ] Path-based room isolation (each room = subdirectory)
-- [ ] Docker Compose: dufs service configured
+- [x] Extract `_normalize()` to shared `utils.py` as `normalize_path()`
+- [x] `DufsWorkspaceProvider` implements `WorkspaceProvider` (WebDAV/httpx)
+- [x] Path-based room isolation (`/rooms/{room_id}/`)
+- [x] Docker Compose: dufs service configured
+- [x] Integration test fixtures (`requires_dufs`, `dufs_workspace`)
+- [x] 20 integration tests against real dufs
 
-#### Code Quality (autonomous)
+#### Code Quality (autonomous -- run BEFORE AI review)
 
 - [ ] `uv run ruff check` -- 0 issues
 - [ ] `uv run ruff format --check` -- no changes
 - [ ] `uv run pyright` -- 0 errors, 0 warnings
-- [ ] `uv run pre-commit run --all-files` -- all hooks pass
 
-#### Tests (autonomous)
+#### Tests (autonomous -- run BEFORE AI review)
 
 - [ ] `uv run pytest tests/unit/` -- all pass, 100% coverage
 - [ ] `uv run pytest tests/integration/ -m dufs` -- all pass (requires dufs)
-- [ ] Integration: upload file, list files, download file, delete file
-- [ ] Integration: cross-room isolation verified
-- [ ] Integration: unauthorized access rejected
 
-#### AI Review Gate (MANDATORY -- security-critical)
+#### AI Review Gate (MANDATORY -- runs AFTER autonomous checks pass)
 
-- [ ] **Gemini review** -- execute:
-      ```json
-      mcp__gemini__read_files(
-        file_paths=[
-          "src/soliplex_workspace/providers/dufs.py",
-          "src/soliplex_workspace/auth.py"
-        ],
-        prompt="Review dufs WebDAV provider and JWT auth proxy. Check:
-          1. WebDAV client correctness (PUT/GET/DELETE/MKCOL/MOVE)
-          2. Path traversal prevention (room isolation)
-          3. JWT validation completeness (expiry, issuer, audience)
-          4. Error handling (network failures, timeouts, 404/409/507)
-          5. httpx client lifecycle (connection pooling, cleanup)
-          6. Content-type detection, large file handling
-          Security is paramount. Flag any auth bypass vectors.",
-        model="gemini-3.1-pro-preview"
-      )
-      ```
-- [ ] **Codex review** -- execute:
-      ```json
-      mcp__codex__codex(
-        prompt="Security review of dufs WebDAV provider and JWT auth
-          proxy in CWD. Focus on: 1. Path traversal prevention
-          2. JWT validation (bypass vectors) 3. WebDAV client
-          error handling 4. Room isolation enforcement 5. Token
-          injection or header manipulation. Treat as a pentest.",
-        sandbox="read-only",
-        approval-policy="on-failure"
-      )
-      ```
-- [ ] All Critical/High findings fixed in code
-- [ ] All Medium findings fixed or justified in PR description
-- [ ] Re-run both reviews after fixes -- no new Critical/High findings
-- [ ] Autonomous checks re-pass after fixes
+- [ ] **Gemini review** (`gemini-3.1-pro-preview`):
+      Files: `providers/dufs.py`, `docker-compose.test.yml`, `tests/integration/conftest.py`
+      Prompt: WebDAV correctness, path traversal, httpx lifecycle, room isolation
+- [ ] **Codex review** (`read-only`):
+      Prompt: Security review -- room isolation, error recovery, path traversal
+- [ ] All Critical/High fixed, re-reviewed
 
 ---
 
-### Slice 2: REST API Endpoints
+### Slice 2: REST API + API Integration Tests
 
 - **Spec:** [slice-2-rest-api.md](slice-2-rest-api.md)
 - **Branch:** `feat/workspace-provider/slice-2`
@@ -198,69 +171,70 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 #### Implementation
 
-- [ ] FastAPI router: `/api/v1/rooms/{room_id}/files/`
-- [ ] Endpoints: list, upload, download, delete, create folder, move
-- [ ] Provider selection via configuration
-- [ ] OpenAPI schema generated and reviewed
+- [x] FastAPI router: `/v1/rooms/{room_id}/workspace/...`
+- [x] 10 endpoints: create/get/delete workspace, list/info/upload/download/delete files, create folder, move
+- [x] Pydantic models for request/response
+- [x] Exception -> HTTPException mapping
+- [x] Provider dependency injection via app.state
 
-#### Code Quality (autonomous)
+#### Code Quality (autonomous -- run BEFORE AI review)
 
 - [ ] `uv run ruff check` -- 0 issues
 - [ ] `uv run ruff format --check` -- no changes
 - [ ] `uv run pyright` -- 0 errors, 0 warnings
-- [ ] `uv run pre-commit run --all-files` -- all hooks pass
 
-#### Tests (autonomous)
+#### Tests (autonomous -- run BEFORE AI review)
 
 - [ ] `uv run pytest tests/unit/` -- all pass, 100% coverage
-- [ ] Unit tests use `MockWorkspaceProvider` (no external deps)
-- [ ] All endpoints tested: happy path + error cases
-- [ ] Auth enforcement tested (unauthorized, wrong room)
+- [x] 20 API tests via TestClient + MockWorkspaceProvider
 
-#### AI Review Gate (MANDATORY)
+#### AI Review Gate (MANDATORY -- runs AFTER autonomous checks pass)
 
-- [ ] **Gemini review** -- execute:
-      ```json
-      mcp__gemini__read_files(
-        file_paths=[
-          "src/soliplex_workspace/api/router.py",
-          "src/soliplex_workspace/api/dependencies.py"
-        ],
-        prompt="Review FastAPI REST endpoints for workspace files. Check:
-          1. REST API design (resource naming, HTTP verbs, status codes)
-          2. Input validation (path params, query params, file size)
-          3. Error response format consistency
-          4. Auth dependency injection correctness
-          5. OpenAPI schema quality (descriptions, examples)
-          6. Streaming upload/download handling",
-        model="gemini-3.1-pro-preview"
-      )
-      ```
-- [ ] **Codex review** -- execute:
-      ```json
-      mcp__codex__codex(
-        prompt="Review FastAPI REST API endpoints in CWD. Focus on:
-          1. Input validation and sanitization 2. Auth enforcement
-          on every endpoint 3. Error handling consistency
-          4. File upload size limits 5. Path injection via URL params
-          6. Missing endpoints for workspace operations.",
-        sandbox="read-only",
-        approval-policy="on-failure"
-      )
-      ```
-- [ ] All Critical/High findings fixed in code
-- [ ] All Medium findings fixed or justified in PR description
-- [ ] Re-run both reviews after fixes -- no new Critical/High findings
-- [ ] Autonomous checks re-pass after fixes
+- [ ] **Gemini review**: REST API design, input validation, OpenAPI schema
+- [ ] **Codex review**: Input sanitization, auth enforcement, file upload limits
+- [ ] All findings fixed, re-reviewed
 
 ---
 
-### Slice 3: OpenCloud Backend -- Space Management
+### Slice 3: E2E Tests Through Soliplex
 
-- **Spec:** [slice-3-opencloud-spaces.md](slice-3-opencloud-spaces.md)
+- **Spec:** [slice-3-e2e-tests.md](slice-3-e2e-tests.md)
 - **Branch:** `feat/workspace-provider/slice-3`
 - **PR target:** `feat/workspace-provider/slice-2`
 - **Depends on:** Slice 2
+
+#### Implementation
+
+- [x] Integration bridge: `create_workspace_provider()` factory + `mount_workspace_api()` helper
+- [x] E2E fixtures: `e2e_client` (FastAPI + DufsWorkspaceProvider)
+- [x] 14 E2E tests (all `@pytest.mark.dufs` + `@pytest.mark.e2e`)
+- [x] Test runner scripts: `scripts/run-integration-tests.sh`, `scripts/run-all-tests.sh`
+
+#### Code Quality (autonomous -- run BEFORE AI review)
+
+- [ ] `uv run ruff check` -- 0 issues
+- [ ] `uv run ruff format --check` -- no changes
+- [ ] `uv run pyright` -- 0 errors, 0 warnings
+
+#### Tests (autonomous -- run BEFORE AI review)
+
+- [ ] `uv run pytest tests/unit/` -- all pass, 100% coverage
+- [ ] `uv run pytest tests/e2e/ -m dufs` -- all pass (requires dufs)
+
+#### AI Review Gate (MANDATORY -- runs AFTER autonomous checks pass)
+
+- [ ] **Gemini review**: E2E completeness, fixture cleanup, integration patterns
+- [ ] **Codex review**: E2E security scenarios, cleanup reliability, race conditions
+- [ ] All findings fixed, re-reviewed
+
+---
+
+### Slice 4: OpenCloud Backend -- Space Management
+
+- **Spec:** [slice-4-opencloud-spaces.md](slice-4-opencloud-spaces.md)
+- **Branch:** `feat/workspace-provider/slice-4`
+- **PR target:** `feat/workspace-provider/slice-3`
+- **Depends on:** Slice 3
 
 #### Implementation
 
@@ -324,12 +298,12 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 ---
 
-### Slice 4: OpenCloud Lifecycle Hooks + Embed Mode
+### Slice 5: OpenCloud Lifecycle Hooks + Embed Mode
 
-- **Spec:** [slice-4-opencloud-lifecycle.md](slice-4-opencloud-lifecycle.md)
-- **Branch:** `feat/workspace-provider/slice-4`
-- **PR target:** `feat/workspace-provider/slice-3`
-- **Depends on:** Slice 3
+- **Spec:** [slice-5-opencloud-lifecycle.md](slice-5-opencloud-lifecycle.md)
+- **Branch:** `feat/workspace-provider/slice-5`
+- **PR target:** `feat/workspace-provider/slice-4`
+- **Depends on:** Slice 4
 
 #### Implementation
 
@@ -394,12 +368,12 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 ---
 
-### Slice 5: Ephemeral Per-Chat Workspaces
+### Slice 6: Ephemeral Per-Chat Workspaces
 
-- **Spec:** [slice-5-ephemeral-workspaces.md](slice-5-ephemeral-workspaces.md)
-- **Branch:** `feat/workspace-provider/slice-5`
-- **PR target:** `feat/workspace-provider/slice-4`
-- **Depends on:** Slice 4
+- **Spec:** [slice-6-ephemeral-workspaces.md](slice-6-ephemeral-workspaces.md)
+- **Branch:** `feat/workspace-provider/slice-6`
+- **PR target:** `feat/workspace-provider/slice-5`
+- **Depends on:** Slice 5
 
 #### Implementation
 
@@ -472,12 +446,12 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 ---
 
-### Slice 6: RAG Integration Pipeline
+### Slice 7: RAG Integration Pipeline
 
-- **Spec:** [slice-6-rag-integration.md](slice-6-rag-integration.md)
-- **Branch:** `feat/workspace-provider/slice-6`
-- **PR target:** `feat/workspace-provider/slice-5`
-- **Depends on:** Slice 5
+- **Spec:** [slice-7-rag-integration.md](slice-7-rag-integration.md)
+- **Branch:** `feat/workspace-provider/slice-7`
+- **PR target:** `feat/workspace-provider/slice-6`
+- **Depends on:** Slice 6
 
 #### Implementation
 
@@ -538,12 +512,12 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 ---
 
-### Slice 7: Security Audit + Production Hardening
+### Slice 8: Security Audit + Production Hardening
 
-- **Spec:** [slice-7-security-hardening.md](slice-7-security-hardening.md)
-- **Branch:** `feat/workspace-provider/slice-7`
-- **PR target:** `feat/workspace-provider/slice-6`
-- **Depends on:** Slices 0-6
+- **Spec:** [slice-8-security-hardening.md](slice-8-security-hardening.md)
+- **Branch:** `feat/workspace-provider/slice-8`
+- **PR target:** `feat/workspace-provider/slice-7`
+- **Depends on:** Slices 0-7
 
 #### Implementation
 
@@ -613,12 +587,12 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 
 ---
 
-### Slice 8: Documentation + Release
+### Slice 9: Documentation + Release
 
-- **Spec:** [slice-8-docs-release.md](slice-8-docs-release.md)
-- **Branch:** `feat/workspace-provider/slice-8`
-- **PR target:** `feat/workspace-provider/slice-7`
-- **Depends on:** Slices 0-7
+- **Spec:** [slice-9-docs-release.md](slice-9-docs-release.md)
+- **Branch:** `feat/workspace-provider/slice-9`
+- **PR target:** `feat/workspace-provider/slice-8`
+- **Depends on:** Slices 0-8
 
 #### Implementation
 
@@ -679,17 +653,16 @@ Each PR shows only the diff for its slice. Merges happen bottom-up.
 For each slice:
   1. Branch from previous slice
   2. Implement (code + tests)
-  3. Run autonomous checks:
+  3. Run autonomous checks FIRST (must all pass before AI review):
      - uv run ruff check
      - uv run ruff format --check
      - uv run pyright
-     - uv run pytest
-     - uv run pre-commit run --all-files
-  4. Run AI Review Gate:
+     - uv run pytest (100% unit coverage)
+  4. Run AI Review Gate (only after step 3 passes):
      a. mcp__gemini__read_files (gemini-3.1-pro-preview) -- see slice prompt
      b. mcp__codex__codex (read-only sandbox) -- see slice prompt
      c. Triage: Critical/High = must fix, Medium = fix or justify
-     d. Fix code, re-run autonomous checks
+     d. Fix code, re-run autonomous checks (step 3)
      e. Re-run both AI reviews on fixed code
      f. Mark all gate checkboxes
   5. Commit + push + create PR
@@ -705,8 +678,10 @@ Keycloak). Integration tests are the primary confidence mechanism.
 | Level | Location | Runner | What it proves |
 |-------|----------|--------|---------------|
 | Unit | `tests/unit/` | `pytest` | Protocol compliance, mock provider, data models |
+| Integration (API) | `tests/integration/` | `pytest tests/integration/test_workspace_api.py` | REST API via TestClient + MockProvider |
 | Integration (dufs) | `tests/integration/` | `pytest -m dufs` | Real WebDAV ops against dufs |
 | Integration (OpenCloud) | `tests/integration/` | `pytest -m opencloud` | Real Graph API + WebDAV against OpenCloud |
+| E2E | `tests/e2e/` | `pytest -m e2e` | Full stack: HTTP -> FastAPI -> dufs |
 | Integration (RAG) | `tests/integration/` | `pytest -m rag` | File upload -> vector ingestion pipeline |
 | Security | `tests/integration/` | `pytest -m security` | Auth bypass, path traversal, injection |
 
