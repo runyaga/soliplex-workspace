@@ -17,16 +17,16 @@ Add `soliplex-workspace` as an editable dependency in your Soliplex `pyproject.t
 
 ```toml
 [tool.uv.sources]
-soliplex-workspace = { path = "../soliplex-owncloud/soliplex-workspace", editable = true }
+soliplex-workspace = { path = "../path/to/soliplex-workspace", editable = true }
 ```
 
 Then sync:
 
 ```bash
-cd ~/dev/soliplex && uv sync
+uv sync
 ```
 
-Configure the workspace provider in `example/installation.yaml`:
+Configure the workspace provider in `installation.yaml`:
 
 ```yaml
 workspace:
