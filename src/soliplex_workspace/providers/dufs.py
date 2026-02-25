@@ -283,6 +283,13 @@ class DufsWorkspaceProvider:
         if not url.endswith("/"):
             url += "/"
         resp = await self._client.request("MKCOL", url)
+        if resp.status_code == 405:
+            # Directory already exists — return its info
+            return FileInfo(
+                name=posixpath.basename(path),
+                path=path,
+                is_directory=True,
+            )
         resp.raise_for_status()
         return FileInfo(
             name=posixpath.basename(path),

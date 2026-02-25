@@ -12,12 +12,12 @@ from soliplex_workspace.exceptions import WorkspaceNotFoundError
 from soliplex_workspace.providers.mock import MockWorkspaceProvider
 from soliplex_workspace.tools.core import workspace_copy
 from soliplex_workspace.tools.core import workspace_delete
+from soliplex_workspace.tools.core import workspace_find
 from soliplex_workspace.tools.core import workspace_info
 from soliplex_workspace.tools.core import workspace_list
 from soliplex_workspace.tools.core import workspace_mkdir
 from soliplex_workspace.tools.core import workspace_move
 from soliplex_workspace.tools.core import workspace_read
-from soliplex_workspace.tools.core import workspace_search
 from soliplex_workspace.tools.core import workspace_write
 
 
@@ -181,7 +181,7 @@ class TestWorkspaceInfo:
             await workspace_info(p, rid, "/nope.txt")
 
 
-# ── workspace_search ────────────────────────────────────────────
+# ── workspace_find ────────────────────────────────────────────
 
 
 class TestWorkspaceSearch:
@@ -190,7 +190,7 @@ class TestWorkspaceSearch:
         await p.upload_file(rid, "/a.txt", b"a")
         await p.upload_file(rid, "/b.md", b"b")
         await p.upload_file(rid, "/c.txt", b"c")
-        result = await workspace_search(p, rid, "*.txt")
+        result = await workspace_find(p, rid, "*.txt")
         assert result.total == 2
         names = [m.name for m in result.matches]
         assert "a.txt" in names
@@ -201,13 +201,13 @@ class TestWorkspaceSearch:
         await p.upload_file(rid, "/report_jan.csv", b"x")
         await p.upload_file(rid, "/report_feb.csv", b"x")
         await p.upload_file(rid, "/notes.md", b"x")
-        result = await workspace_search(p, rid, "report_*")
+        result = await workspace_find(p, rid, "report_*")
         assert result.total == 2
 
     async def test_no_matches(self, ctx):
         p, rid = ctx
         await p.upload_file(rid, "/a.txt", b"a")
-        result = await workspace_search(p, rid, "*.py")
+        result = await workspace_find(p, rid, "*.py")
         assert result.total == 0
         assert result.matches == []
 
@@ -216,7 +216,7 @@ class TestWorkspaceSearch:
         await p.create_folder(rid, "/sub")
         await p.upload_file(rid, "/sub/f.py", b"x")
         await p.upload_file(rid, "/top.py", b"x")
-        result = await workspace_search(p, rid, "*.py", path="/sub")
+        result = await workspace_find(p, rid, "*.py", path="/sub")
         assert result.total == 1
         assert result.matches[0].path == "/sub/f.py"
 
@@ -224,7 +224,7 @@ class TestWorkspaceSearch:
         p, rid = ctx
         for i in range(10):
             await p.upload_file(rid, f"/f{i}.txt", b"x")
-        result = await workspace_search(p, rid, "*.txt", max_results=3)
+        result = await workspace_find(p, rid, "*.txt", max_results=3)
         assert len(result.matches) == 3
         assert result.total == 10
         assert result.truncated is True
@@ -233,14 +233,14 @@ class TestWorkspaceSearch:
         p, rid = ctx
         await p.upload_file(rid, "/a.txt", b"x")
         long_pattern = "a" * 300
-        result = await workspace_search(p, rid, long_pattern)
+        result = await workspace_find(p, rid, long_pattern)
         assert len(result.pattern) <= 200
 
     async def test_case_sensitive(self, ctx):
         p, rid = ctx
         await p.upload_file(rid, "/README.md", b"x")
         await p.upload_file(rid, "/readme.md", b"x")
-        result = await workspace_search(p, rid, "README*")
+        result = await workspace_find(p, rid, "README*")
         assert result.total == 1
         assert result.matches[0].name == "README.md"
 
@@ -373,7 +373,7 @@ class TestReturnTypes:
 
     async def test_search_returns_basemodel(self, ctx):
         p, rid = ctx
-        result = await workspace_search(p, rid, "*")
+        result = await workspace_find(p, rid, "*")
         assert isinstance(result, BaseModel)
 
     async def test_mkdir_returns_basemodel(self, ctx):
@@ -427,7 +427,7 @@ class TestSafety:
     async def test_path_traversal_search(self, ctx):
         p, rid = ctx
         with pytest.raises(InvalidPathError):
-            await workspace_search(p, rid, "*", path="/../etc")
+            await workspace_find(p, rid, "*", path="/../etc")
 
     async def test_path_traversal_mkdir(self, ctx):
         p, rid = ctx

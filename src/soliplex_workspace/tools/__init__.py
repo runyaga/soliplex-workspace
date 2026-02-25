@@ -3,12 +3,12 @@
 from soliplex_workspace.tools.bridge import make_workspace_tools
 from soliplex_workspace.tools.core import workspace_copy
 from soliplex_workspace.tools.core import workspace_delete
+from soliplex_workspace.tools.core import workspace_find
 from soliplex_workspace.tools.core import workspace_info
 from soliplex_workspace.tools.core import workspace_list
 from soliplex_workspace.tools.core import workspace_mkdir
 from soliplex_workspace.tools.core import workspace_move
 from soliplex_workspace.tools.core import workspace_read
-from soliplex_workspace.tools.core import workspace_search
 from soliplex_workspace.tools.core import workspace_write
 from soliplex_workspace.tools.schemas import CopyResult
 from soliplex_workspace.tools.schemas import DeleteResult
@@ -36,6 +36,6 @@ __all__ = [
     "workspace_mkdir",
     "workspace_move",
     "workspace_read",
-    "workspace_search",
+    "workspace_find",
     "workspace_write",
 ]

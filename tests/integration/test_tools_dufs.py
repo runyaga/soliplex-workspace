@@ -6,9 +6,9 @@ import pytest
 
 from soliplex_workspace.exceptions import WorkspaceAlreadyExistsError
 from soliplex_workspace.tools.core import workspace_copy
+from soliplex_workspace.tools.core import workspace_find
 from soliplex_workspace.tools.core import workspace_list
 from soliplex_workspace.tools.core import workspace_read
-from soliplex_workspace.tools.core import workspace_search
 from soliplex_workspace.tools.core import workspace_write
 
 from .conftest import requires_dufs
@@ -64,7 +64,7 @@ class TestToolsIntegration:
         await p.upload_file(rid, "/report.csv", b"data")
         await p.upload_file(rid, "/notes.md", b"notes")
         await p.upload_file(rid, "/data.csv", b"more")
-        result = await workspace_search(p, rid, "*.csv")
+        result = await workspace_find(p, rid, "*.csv")
         names = [m.name for m in result.matches]
         assert "report.csv" in names
         assert "data.csv" in names
@@ -91,7 +91,7 @@ class TestToolsIntegration:
         )
         await p.upload_file(rid, "/research/data.csv", b"a,b\n1,2")
 
-        search = await workspace_search(p, rid, "*.md", path="/research")
+        search = await workspace_find(p, rid, "*.md", path="/research")
         assert search.total == 2
 
         contents = []

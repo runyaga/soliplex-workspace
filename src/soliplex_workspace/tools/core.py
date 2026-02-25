@@ -53,10 +53,15 @@ async def workspace_list(
     max_depth: int = 10,
     max_results: int = 500,
 ) -> ListResult:
-    """List files and folders in the workspace.
+    """List files and folders at the given path.
 
-    Set ``recursive=True`` for a full tree.  Results are capped at
-    ``max_results`` to protect the LLM context window.
+    Args:
+        path: Directory to list (default "/").
+        recursive: If True, list all descendants, not just immediate children.
+        max_depth: Maximum recursion depth (only used when recursive=True).
+        max_results: Cap on number of entries returned.
+
+    Returns a list of file/folder entries with metadata.
     """
     path = normalize_path(path)
     max_depth = min(max_depth, _MAX_DEPTH_CEILING)
@@ -88,10 +93,13 @@ async def workspace_read(
     path: str,
     max_bytes: int = 100_000,
 ) -> ReadResult:
-    """Read a text file's contents.
+    """Read the text content of a single file.
 
-    Works with code, markdown, CSV, JSON.  Truncates at ``max_bytes``
-    (~25k tokens).  Raises ``UnicodeDecodeError`` on binary files.
+    Args:
+        path: Absolute path to the file (e.g. "/notes/readme.md").
+        max_bytes: Truncate after this many bytes (~25k tokens at default).
+
+    Works with code, markdown, CSV, JSON. Raises an error on binary files.
     """
     path = normalize_path(path)
     logger.debug("workspace_read room=%s path=%s", room_id, path)
@@ -120,10 +128,14 @@ async def workspace_write(
     content: str,
     overwrite: bool = False,
 ) -> WriteResult:
-    """Write or create a text file.
+    """Create or overwrite a text file.
 
-    Set ``overwrite=True`` to replace existing files.  Defaults to
-    exclusive creation to prevent accidental data destruction.
+    Args:
+        path: Absolute path for the file (e.g. "/docs/plan.md").
+        content: The text content to write.
+        overwrite: Must be True to replace an existing file.
+
+    Parent directories are created automatically.
     """
     path = normalize_path(path)
     logger.debug(
@@ -159,29 +171,43 @@ async def workspace_info(
     room_id: str,
     path: str,
 ) -> FileEntry:
-    """Get metadata about a file or folder."""
+    """Get metadata (size, type, modified date) for a single file or folder."""
     path = normalize_path(path)
     logger.debug("workspace_info room=%s path=%s", room_id, path)
     info = await provider.get_file_info(room_id, path)
     return _file_entry_from_info(info)
 
 
-async def workspace_search(
+async def workspace_find(
     provider: WorkspaceProvider,
     room_id: str,
     pattern: str,
     path: str = "/",
     max_results: int = 200,
 ) -> SearchResult:
-    """Search for files by name pattern (glob).
+    """Find files recursively by glob pattern (like the ``find`` command).
 
-    Uses ``fnmatch.fnmatchcase()`` for deterministic case-sensitive
-    matching.  Pattern length is capped at 200 characters.
+    Matches against filenames only, not file contents. Always searches
+    all sub-folders starting from ``path``. This tool does not accept
+    a ``recursive`` parameter — it is always recursive.
+
+    Glob examples:
+    - ``*.md``  — all markdown files
+    - ``report_*`` — files starting with "report_"
+    - ``*.py`` — all Python files
+
+    Args:
+        pattern: Glob pattern to match against filenames.
+        path: Starting directory (default "/").
+        max_results: Cap on number of matches returned.
+
+    To list a single directory without recursion, use workspace_list.
+    To read file contents, use workspace_read.
     """
     path = normalize_path(path)
     pattern = pattern[:_MAX_PATTERN_LEN]
     logger.debug(
-        "workspace_search room=%s pattern=%s path=%s", room_id, pattern, path
+        "workspace_find room=%s pattern=%s path=%s", room_id, pattern, path
     )
     all_files = await provider.list_files_recursive(
         room_id, path, max_depth=20, max_results=10_000
@@ -194,7 +220,7 @@ async def workspace_search(
     total = len(matches)
     truncated = total > max_results
     logger.debug(
-        "workspace_search room=%s pattern=%s matches=%d",
+        "workspace_find room=%s pattern=%s matches=%d",
         room_id,
         pattern,
         total,
@@ -212,7 +238,7 @@ async def workspace_mkdir(
     room_id: str,
     path: str,
 ) -> FileEntry:
-    """Create a directory."""
+    """Create a directory. Safe to call if the directory already exists."""
     path = normalize_path(path)
     logger.debug("workspace_mkdir room=%s path=%s", room_id, path)
     info = await provider.create_folder(room_id, path)
@@ -225,7 +251,12 @@ async def workspace_move(
     src: str,
     dst: str,
 ) -> MoveResult:
-    """Move or rename a file or folder."""
+    """Move or rename a file or folder.
+
+    Args:
+        src: Current path of the file/folder.
+        dst: New path (can rename and/or relocate).
+    """
     src = normalize_path(src)
     dst = normalize_path(dst)
     logger.debug("workspace_move room=%s src=%s dst=%s", room_id, src, dst)
@@ -238,7 +269,7 @@ async def workspace_delete(
     room_id: str,
     path: str,
 ) -> DeleteResult:
-    """Delete a file or folder. Cannot be undone."""
+    """Permanently delete a file or folder. Cannot be undone."""
     path = normalize_path(path)
     logger.debug("workspace_delete room=%s path=%s", room_id, path)
     await provider.delete_file(room_id, path)
@@ -252,9 +283,11 @@ async def workspace_copy(
     src: str,
     dst: str,
 ) -> CopyResult:
-    """Copy a file (binary-safe).
+    """Copy a file to a new location (binary-safe).
 
-    Implemented as download + upload, so works with any file type.
+    Args:
+        src: Path of the file to copy.
+        dst: Destination path for the copy.
     """
     src = normalize_path(src)
     dst = normalize_path(dst)

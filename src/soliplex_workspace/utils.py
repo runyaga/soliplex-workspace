@@ -12,6 +12,7 @@ def normalize_path(path: str) -> str:
 
     Raises ``InvalidPathError`` if the path contains ``..`` segments.
     """
+    path = path.strip()
     if ".." in path.split("/"):
         raise InvalidPathError(path)
     if not path.startswith("/"):
