@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 
 from soliplex_workspace.exceptions import WorkspaceAlreadyExistsError
+from soliplex_workspace.tools.core import workspace_find
 from soliplex_workspace.tools.core import workspace_info
 from soliplex_workspace.tools.core import workspace_read
-from soliplex_workspace.tools.core import workspace_search
 from soliplex_workspace.tools.core import workspace_write
 
 from .conftest import requires_dufs
@@ -30,7 +30,7 @@ class TestTemplatePopulation:
         )
 
         # Search for template (also matches "templates" dir)
-        search = await workspace_search(p, rid, "*template*")
+        search = await workspace_find(p, rid, "*template*")
         assert search.total >= 1
         file_matches = [m for m in search.matches if not m.is_directory]
         assert len(file_matches) == 1

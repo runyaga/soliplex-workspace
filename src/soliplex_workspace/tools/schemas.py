@@ -40,7 +40,7 @@ class WriteResult(BaseModel):
 
 
 class SearchResult(BaseModel):
-    """Response from workspace_search."""
+    """Response from workspace_find."""
 
     pattern: str
     matches: list[FileEntry]

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from soliplex_workspace.tools.core import workspace_find
 from soliplex_workspace.tools.core import workspace_mkdir
 from soliplex_workspace.tools.core import workspace_read
-from soliplex_workspace.tools.core import workspace_search
 from soliplex_workspace.tools.core import workspace_write
 
 from .conftest import requires_dufs
@@ -29,7 +29,7 @@ class TestCodeDocumentation:
         )
 
         # Search for Python files
-        search = await workspace_search(p, rid, "*.py")
+        search = await workspace_find(p, rid, "*.py")
         assert search.total == 2
 
         # Read each file

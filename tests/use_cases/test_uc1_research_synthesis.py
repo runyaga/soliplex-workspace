@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from soliplex_workspace.tools.core import workspace_find
 from soliplex_workspace.tools.core import workspace_read
-from soliplex_workspace.tools.core import workspace_search
 from soliplex_workspace.tools.core import workspace_write
 
 from .conftest import requires_dufs
@@ -33,7 +33,7 @@ class TestResearchSynthesis:
         )
 
         # Search for markdown files
-        search = await workspace_search(p, rid, "*.md", path="/research")
+        search = await workspace_find(p, rid, "*.md", path="/research")
         assert search.total == 3
 
         # Read each match

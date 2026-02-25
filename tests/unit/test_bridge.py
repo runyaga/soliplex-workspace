@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 
 import pytest
 
@@ -63,7 +64,7 @@ class TestBindToolMetadata:
         provider = MockWorkspaceProvider()
         bound = _bind_tool(workspace_read, provider, "room-1")
         assert bound.__doc__ is not None
-        assert "Read a text file" in bound.__doc__
+        assert "Read the text content" in bound.__doc__
 
     def test_preserves_name(self):
         provider = MockWorkspaceProvider()
@@ -100,7 +101,7 @@ class TestMakeWorkspaceTools:
             "workspace_read",
             "workspace_write",
             "workspace_info",
-            "workspace_search",
+            "workspace_find",
             "workspace_mkdir",
             "workspace_move",
             "workspace_delete",
@@ -136,9 +137,9 @@ class TestBoundToolExecution:
     ):
         tools = make_workspace_tools(mock_provider, "room-1")
         list_tool = next(t for t in tools if t.__name__ == "workspace_list")
-        result = await list_tool(path="/")
-        assert result.path == "/"
-        assert result.files == []
+        result = json.loads(await list_tool(path="/"))
+        assert result["path"] == "/"
+        assert result["files"] == []
 
     async def test_write_and_read(
         self,
@@ -148,8 +149,8 @@ class TestBoundToolExecution:
         write_tool = next(t for t in tools if t.__name__ == "workspace_write")
         read_tool = next(t for t in tools if t.__name__ == "workspace_read")
         await write_tool(path="/hello.txt", content="Hello!")
-        result = await read_tool(path="/hello.txt")
-        assert result.content == "Hello!"
+        result = json.loads(await read_tool(path="/hello.txt"))
+        assert result["content"] == "Hello!"
 
     async def test_mkdir_and_list(
         self,
@@ -159,8 +160,8 @@ class TestBoundToolExecution:
         mkdir_tool = next(t for t in tools if t.__name__ == "workspace_mkdir")
         list_tool = next(t for t in tools if t.__name__ == "workspace_list")
         await mkdir_tool(path="/docs")
-        result = await list_tool(path="/")
-        names = [f.name for f in result.files]
+        result = json.loads(await list_tool(path="/"))
+        names = [f["name"] for f in result["files"]]
         assert "docs" in names
 
 
@@ -172,8 +173,8 @@ class TestAutoCreateWorkspace:
         tools = make_workspace_tools(provider, "room-auto")
         list_tool = next(t for t in tools if t.__name__ == "workspace_list")
         # No workspace pre-created — auto_create should handle it
-        result = await list_tool(path="/")
-        assert result.path == "/"
+        result = json.loads(await list_tool(path="/"))
+        assert result["path"] == "/"
         ws = await provider.get_workspace("room-auto")
         assert ws is not None
         assert ws.room_id == "room-auto"

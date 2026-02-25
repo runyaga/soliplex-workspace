@@ -13,6 +13,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import BaseModel
+
 from soliplex_workspace.tools import core
 
 logger = logging.getLogger(__name__)
@@ -22,7 +24,7 @@ _TOOL_FUNCTIONS = [
     core.workspace_read,
     core.workspace_write,
     core.workspace_info,
-    core.workspace_search,
+    core.workspace_find,
     core.workspace_mkdir,
     core.workspace_move,
     core.workspace_delete,
@@ -95,6 +97,11 @@ def _bind_tool(
             "tool call %s room=%s kwargs=%s", func.__name__, room_id, kwargs
         )
         result = await func(provider=provider, room_id=room_id, **kwargs)
+        # Ollama rejects tool results with non-string content
+        # (error: "invalid message content type: <nil>").
+        # Serialize Pydantic models to JSON strings for compatibility.
+        if isinstance(result, BaseModel):
+            result = result.model_dump_json()
         logger.debug("tool done %s room=%s", func.__name__, room_id)
         return result
 
