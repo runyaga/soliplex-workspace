@@ -13,7 +13,8 @@ the workspace PR to keep it scoped. Needs a separate `fix/ollama-content-null`
 branch on soliplex.
 
 **Location:** `soliplex/agents.py` — replace `OpenAIChatModel` with the
-subclass for the `OLLAMA` provider type.
+subclass for the `OLLAMA` provider type. The `_into_message_param` method
+docstring explicitly says it is a hook for subclasses.
 
 ## P0: URL-encoded filenames
 
@@ -25,42 +26,64 @@ and subsequent reads/writes double-encode to `my%2520file.txt` causing 404s.
 
 ## P1: Race condition in \_ensure\_workspace
 
-`bridge.py:_ensure_workspace` uses a `_workspace_ensured` flag per bound tool.
-When the LLM invokes multiple tools in parallel and the workspace does not
-exist yet, all concurrent calls pass the `if not _workspace_ensured` check
+`bridge.py:_ensure_workspace` uses a `_workspace_ensured` flag per bound tool
+closure. Each tool created by `make_workspace_tools` gets its own independent
+flag. When the LLM invokes multiple tools in parallel and the workspace does
+not exist yet, all concurrent calls pass the `if not _workspace_ensured` check
 and try to create the workspace simultaneously. The losers get
 `WorkspaceAlreadyExistsError`.
 
-**Fix:** Catch `WorkspaceAlreadyExistsError` inside `_ensure_workspace`, or
-use an `asyncio.Lock`.
+**Fix:** Catch `WorkspaceAlreadyExistsError` inside `_ensure_workspace` (EAFP
+pattern). An `asyncio.Lock` would also work but is heavier than needed since
+workspace creation is idempotent.
 
 ## P1: OOM on large file download
 
 `workspace_read` and `workspace_copy` download the entire file into RAM before
 truncating. A 5 GB file will crash the process.
 
-**Fix:** Add a `HEAD`/`get_file_info` size check before `download_file`, or
-implement streaming reads in the provider.
+**Fix for `workspace_read`:** Call `get_file_info()` before `download_file()`
+and raise a graceful error if `size_bytes > max_bytes`. This prevents the
+download entirely.
 
-## P2: Agent cache ignores room\_id
+**Fix for `workspace_copy`:** Accept as-is for MVP. A full fix requires
+streaming support in the provider protocol (`aiter_bytes`), which is a larger
+change.
+
+## P2: Use RunContext/deps instead of extra\_tools
 
 `agents.py:get_agent_from_configs` caches agents by `agent_config.id`. If two
 rooms share the same agent config but have different workspace tool bindings
 (different `room_id`), the second room gets the first room's tools.
 
-**Fix:** Include `room_id` in the cache key when `extra_tools` are provided,
-or skip caching for workspace-enabled agents.
+The current approach uses `extra_tools` (closures bound to a specific
+`room_id`) injected at agent creation time. This conflicts with agent caching.
 
-## P2: REST API not mounted
+**Idiomatic fix:** Use pydantic-ai `RunContext[AgentDependencies]` instead.
+Soliplex already uses this pattern for other tools (see `soliplex/tools.py`).
+The workspace tools should accept `ctx: RunContext[AgentDependencies]` and
+read `ctx.deps.workspace_provider` and `ctx.deps.room_id` at call time.
+This lets a single cached agent serve multiple rooms, with room-specific
+context injected per-run through `deps`.
+
+Requires:
+
+- Add `room_id` to `AgentDependencies`
+- Rewrite workspace tool signatures to use `RunContext`
+- Remove `extra_tools` / closure-based binding from `bridge.py`
+
+## P2: Mount REST API and provider teardown
 
 `mount_workspace_api()` from `soliplex_workspace.api.integration` is never
 called during application startup. The workspace only works via LLM tools;
 no REST endpoint exists for a UI file browser.
 
-## P2: No provider teardown
+`mount_workspace_api()` already registers provider teardown via
+`app.router.on_shutdown.append(_close_provider)`. Mounting the API also
+solves the `httpx.AsyncClient` leak on shutdown.
 
-`DufsWorkspaceProvider` holds an `httpx.AsyncClient` that is never closed on
-shutdown. Add `await provider.close()` to the soliplex lifespan.
+**Fix:** Call `mount_workspace_api(app, provider)` in soliplex's lifespan
+or main app setup.
 
 ## Future slices
 
